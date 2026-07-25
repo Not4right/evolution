@@ -256,10 +256,24 @@ PAGE = """<title>%TITLE%</title>
 <script>
 const DATA = %DATA%;
 const cv = document.getElementById('stage'), cx = cv.getContext('2d');
-const dt = DATA.frame_dt;
+const SUB = DATA.interpolate || 1;          // rendered frames per recorded one
+const dt = DATA.frame_dt / SUB;
 let C = DATA.creatures[DATA.champion];
 let traj = C.trajectory, contacts = C.contacts, outs = C.muscle_outputs;
-let bones = C.bones, muscles = C.muscles, N = traj.length;
+let bones = C.bones, muscles = C.muscles, N = (traj.length - 1) * SUB + 1;
+
+// Positions are recorded at a lower rate and interpolated, which keeps the
+// page small without making the motion look like a flip book.
+function poseAt(f) {
+  const i = Math.min(Math.floor(f / SUB), traj.length - 1);
+  const j = Math.min(i + 1, traj.length - 1);
+  const u = (f / SUB) - i;
+  if (u === 0 || i === j) return traj[i];
+  const a = traj[i], b = traj[j];
+  return a.map((p, k) => [p[0] + (b[k][0] - p[0]) * u,
+                          p[1] + (b[k][1] - p[1]) * u]);
+}
+const sampleAt = f => Math.min(Math.round(f / SUB), traj.length - 1);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let frame = 0, playing = !reduced, speed = 1, last = 0, ghosts = true;
 
@@ -299,7 +313,7 @@ function pose(P, ox, oy, scale, alpha, t) {
 }
 
 function draw() {
-  const P = traj[frame], W = cv.width, H = cv.height;
+  const P = poseAt(frame), s_i = sampleAt(frame), W = cv.width, H = cv.height;
   const span = 48, scale = W / span;
   let cxm = 0; for (const p of P) cxm += p[0]; cxm /= P.length;
   // pan up only as far as needed to keep a leaping creature in frame
@@ -332,11 +346,11 @@ function draw() {
 
   if (ghosts) {
     for (let g = 4; g >= 1; g--) {
-      const t = frame - g * 7;
-      if (t >= 0) pose(traj[t], ox, oy, scale, 0.05 + 0.03 * (4 - g), null);
+      const t = frame - g * 7 * SUB;
+      if (t >= 0) pose(poseAt(t), ox, oy, scale, 0.05 + 0.03 * (4 - g), null);
     }
   }
-  pose(P, ox, oy, scale, 1, frame);
+  pose(P, ox, oy, scale, 1, s_i);
 
   const t = frame * dt, d = cxm - C.start_x;
   document.getElementById('clock').textContent =
@@ -440,7 +454,8 @@ def main():
             "fitness": round(d["fitness"], 4),
         }
     data = {"champion": champ, "order": order, "creatures": creatures,
-            "frame_dt": res["frame_dt"]}
+            "frame_dt": res["frame_dt"],
+            "interpolate": max(1, round(res["frame_dt"] / 0.02))}
     tabs = "".join(
         f'<button class="tab" data-name="{n}" role="tab" '
         f'aria-pressed="{str(n == champ).lower()}">{n}<u>'
