@@ -297,7 +297,11 @@ function draw() {
   const P = traj[frame], W = cv.width, H = cv.height;
   const span = 48, scale = W / span;
   let cxm = 0; for (const p of P) cxm += p[0]; cxm /= P.length;
-  const ox = W / 2 - cxm * scale, oy = H - 96;
+  // pan up only as far as needed to keep a leaping creature in frame
+  let topY = -1e9; for (const p of P) if (p[1] > topY) topY = p[1];
+  const headroom = (H - 96) / scale;
+  const lift = Math.max(0, topY + 2 - headroom);
+  const ox = W / 2 - cxm * scale, oy = H - 96 + lift * scale;
   const X = x => ox + x * scale, Y = y => oy - y * scale;
 
   cx.fillStyle = css('--sky'); cx.fillRect(0, 0, W, H);
@@ -483,6 +487,12 @@ def main():
       <li>Because the simulation is chaotic, the champion is not the highest
       score ever logged - every chromosome of the final population was
       re-simulated and the creature that actually performs was kept.</li>
+      <li><strong>Caveat on this particular run.</strong> Afterwards I found
+      that ground depenetration was feeding real upward momentum back into a
+      joint that had punched into the floor, which is why this creature spends
+      most of its run airborne rather than striding. The contact model is
+      fixed in the code; these numbers are from the run that preceded the fix,
+      and a re-run under the corrected physics is under way.</li>
     </ul>"""
 
     fields = {
