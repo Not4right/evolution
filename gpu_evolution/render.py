@@ -45,15 +45,25 @@ def animate(name, design, entry, out_path, fps=25, trail=True):
     outputs = np.array(entry["muscle_outputs"])    # [T, M]
     T = len(traj)
 
-    fig, ax = plt.subplots(figsize=(9, 4.2), dpi=110)
+    # keep the window's aspect equal to the figure's so nothing gets cropped
+    fig_w, fig_h, x_span = 10.0, 4.6, 44.0
+    y_lo = -2.0
+    y_hi = y_lo + x_span * fig_h / fig_w
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=110)
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     fig.patch.set_facecolor(SKY_TOP)
     ax.set_facecolor(SKY_TOP)
     ax.set_aspect("equal")
+    ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_ylim(-3, 26)
+    ax.set_ylim(y_lo, y_hi)
     ax.spines[:].set_visible(False)
 
-    ground = ax.axhspan(-3, 0, facecolor=GROUND_COLOR, alpha=0.55, zorder=0)
+    ax.axhspan(y_lo, 0, facecolor=GROUND_COLOR, alpha=0.55, zorder=0)
+    ax.axhline(0, color="#5d7a45", lw=1.2, zorder=1)
+    ruler = [ax.text(0, -1.15, "", ha="center", va="center", fontsize=8,
+                     family="monospace", color="#4a5a3c", zorder=2)
+             for _ in range(12)]
     bone_lines = [ax.plot([], [], lw=5, color=BONE_COLOR, solid_capstyle="round",
                           zorder=3)[0] for _ in bones]
     muscle_lines = [ax.plot([], [], lw=2, color=CONTRACT_COLOR, alpha=0.9,
@@ -64,8 +74,8 @@ def animate(name, design, entry, out_path, fps=25, trail=True):
     for p in joint_patches:
         ax.add_patch(p)
     trail_line, = ax.plot([], [], lw=1, ls=":", color="#8899aa", zorder=1)
-    label = ax.text(0.015, 0.94, "", transform=ax.transAxes, fontsize=11,
-                    family="monospace", va="top")
+    label = ax.text(0.012, 0.955, "", transform=ax.transAxes, fontsize=11,
+                    family="monospace", va="top", color="#2b3542")
 
     x0 = traj[0, :, 0].mean()
     dt = entry.get("frame_dt", 1.0 / fps)
@@ -91,10 +101,17 @@ def animate(name, design, entry, out_path, fps=25, trail=True):
         if trail:
             trail_line.set_data(traj[:t + 1, :, 0].mean(axis=1),
                                 traj[:t + 1, :, 1].mean(axis=1))
-        ax.set_xlim(cx - 18, cx + 18)
+        ax.set_xlim(cx - x_span / 2, cx + x_span / 2)
+        first = int(((cx - x_span / 2) // 10 + 1) * 10)
+        for k, txt in enumerate(ruler):
+            m = first + 10 * k
+            inside = m < cx + x_span / 2
+            txt.set_position((m if inside else cx, -1.15))
+            txt.set_text(str(m) if inside else "")
         label.set_text(f"{name}   t={t * dt:5.2f}s   x={cx - x0:7.2f}   "
                        f"v={(cx - x0) / max(t * dt, 1e-9):5.2f} u/s")
-        return bone_lines + muscle_lines + joint_patches + [trail_line, label]
+        return (bone_lines + muscle_lines + joint_patches
+                + ruler + [trail_line, label])
 
     anim = FuncAnimation(fig, draw, frames=T, interval=1000 * dt, blit=False)
     anim.save(out_path, writer=PillowWriter(fps=int(round(1 / dt))))
@@ -104,7 +121,7 @@ def animate(name, design, entry, out_path, fps=25, trail=True):
 
 def history_plot(results, out_path):
     hist = np.array(results["history"], dtype=float)
-    names = list(results["designs"].keys())
+    names = list(results.get("summary") or results["designs"])
     n = len(names)
     fig, ax = plt.subplots(figsize=(9, 4.4), dpi=120)
     colors = plt.cm.viridis(np.linspace(0.05, 0.85, n))
@@ -114,6 +131,7 @@ def history_plot(results, out_path):
     ax.set_xlabel("generation")
     ax.set_ylabel("fitness  (distance / 550)")
     ax.set_title("Best (solid) and population mean (faint) fitness per generation")
+    ax.set_xlim(0, hist[:, 0].max())
     ax.grid(alpha=0.25)
     ax.legend(ncol=n, fontsize=9, frameon=False)
     fig.tight_layout()

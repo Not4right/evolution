@@ -33,6 +33,7 @@ def svg_chart(history, names, champ, width=820, height=290, pad=48):
     n = len(names)
     gens = [row[0] for row in history]
     best = [[row[1 + i] for row in history] for i in range(n)]
+    mean = [[row[1 + n + i] for row in history] for i in range(n)]
     ymax = (max(max(b) for b in best) or 1.0) * 1.08
     xmax = max(gens) or 1
     right, top = width - 14, 14
@@ -65,6 +66,11 @@ def svg_chart(history, names, champ, width=820, height=290, pad=48):
                      f'stroke="{SERIES[i % 5]}" stroke-width="{2.2 if win else 1.2}" '
                      f'stroke-opacity="{1 if win else 0.55}" '
                      f'stroke-linejoin="round"/>')
+        mpts = " ".join(f"{x:.1f},{y:.1f}" for x, y in
+                        (pt(g, v) for g, v in zip(gens, mean[i])))
+        parts.append(f'<polyline points="{mpts}" fill="none" '
+                     f'stroke="{SERIES[i % 5]}" stroke-width="1" '
+                     f'stroke-opacity="{0.45 if win else 0.2}"/>')
         ex, ey = pt(gens[-1], best[i][-1])
         parts.append(f'<circle cx="{ex:.1f}" cy="{ey:.1f}" r="{3.4 if win else 2}" '
                      f'fill="{SERIES[i % 5]}"/>')
@@ -225,9 +231,12 @@ PAGE = """<title>%TITLE%</title>
   <section>
     <h2>%GENERATIONS% generations of getting faster</h2>
     %CHART%
-    <p class="caption">Best fitness in each generation. The jagged drops are the
-      point: with a mutation rate of 0.5 most children are heavily scrambled, so
-      each generation's peak swings even while the elites carry progress forward.</p>
+    <p class="caption">Heavy line: the best creature in each generation. It only
+      ever steps upward because the game copies the best two creatures into the
+      next generation untouched, so a record once set is never lost. The faint
+      line is the population average, which stays far below it - with a mutation
+      rate of 0.5 most children are heavily scrambled, and nearly all of them
+      are worse than their parents.</p>
   </section>
 
   <section>
