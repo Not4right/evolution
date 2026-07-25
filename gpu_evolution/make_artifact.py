@@ -9,6 +9,8 @@ import argparse
 import json
 import os
 
+import trajcodec
+
 
 def topology(design):
     jids = {j["id"]: k for k, j in enumerate(design["joints"])}
@@ -386,7 +388,7 @@ def main():
 
     data = {
         "name": champ,
-        "trajectory": entry["trajectory"],
+        "trajectory": trajcodec.decode(entry["trajectory"]),
         "contacts": entry["contacts"],
         "muscle_outputs": entry["muscle_outputs"],
         "bones": bones,

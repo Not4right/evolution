@@ -10,6 +10,8 @@ import argparse
 import json
 import os
 
+import trajcodec
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -38,7 +40,7 @@ def creature_topology(design):
 
 def animate(name, design, entry, out_path, fps=25, trail=True):
     bones, muscles = creature_topology(design)
-    traj = np.array(entry["trajectory"])           # [T, J, 2]
+    traj = np.array(trajcodec.decode(entry["trajectory"]))           # [T, J, 2]
     contacts = np.array(entry["contacts"])         # [T, J]
     outputs = np.array(entry["muscle_outputs"])    # [T, M]
     T = len(traj)

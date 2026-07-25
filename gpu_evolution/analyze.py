@@ -23,6 +23,7 @@ import zlib
 
 import torch
 
+import trajcodec
 from evolution_gpu import DT, MAX_DISTANCE, BatchedWorld
 
 
@@ -147,7 +148,9 @@ def main():
     if args.blob:
         blob = dict(results)
         if args.blob_only:
-            blob["designs"] = {args.blob_only: results["designs"][args.blob_only]}
+            entry = dict(results["designs"][args.blob_only])
+            entry["trajectory"] = trajcodec.encode(entry["trajectory"])
+            blob["designs"] = {args.blob_only: entry}
             blob["summary"] = {n: {k: d[k] for k in
                                    ("fitness", "distance", "speed",
                                     "fitness_rescored",
