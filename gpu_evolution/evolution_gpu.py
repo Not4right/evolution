@@ -259,15 +259,26 @@ class BatchedWorld:
         prev = pos
         pos = self._solve_bones(pos + vel * dts)
 
-        # ground plane at y = 0 + Coulomb friction
+        # Ground plane at y = 0. Separation is capped at Unity's
+        # maxDepenetrationVelocity and, like PhysX, is a positional bias only:
+        # it must not become momentum, or a joint that punched into the ground
+        # gets catapulted back out and the creature evolves to farm that.
+        # The contact itself is inelastic (restitution 0), so it only cancels
+        # the downward velocity. Coulomb friction is proportional to the normal
+        # correction actually applied this substep.
         pen = (JOINT_RADIUS - pos[..., 1]).clamp(min=0.0) * self.jmask
         contact = (pen > 0).to(self.dtype)
-        y = pos[..., 1] + torch.clamp(pen, max=MAX_DEPEN_SPEED * dts)
+        push = torch.clamp(pen, max=MAX_DEPEN_SPEED * dts)
         dx = pos[..., 0] - prev[..., 0]
-        fric = -torch.sign(dx) * torch.minimum(dx.abs(), FRICTION * pen) * contact
-        pos = torch.stack((pos[..., 0] + fric, y), dim=-1)
+        fric = -torch.sign(dx) * torch.minimum(dx.abs(), FRICTION * push) * contact
+        pos = torch.stack((pos[..., 0] + fric, pos[..., 1]), dim=-1)
 
-        vel = self._limit_angular(pos, (pos - prev) / dts)
+        vel = (pos - prev) / dts
+        vy = torch.where(contact > 0, vel[..., 1].clamp(min=0.0), vel[..., 1])
+        vel = torch.stack((vel[..., 0], vy), dim=-1)
+        pos = torch.stack((pos[..., 0], pos[..., 1] + push), dim=-1)
+
+        vel = self._limit_angular(pos, vel)
         return pos, vel, contact
 
     # ---------------------------------------------------------------- brain
