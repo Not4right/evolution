@@ -539,12 +539,11 @@ def main():
       <li>Because the simulation is chaotic, the champion is not the highest
       score ever logged - every chromosome of the final population was
       re-simulated and the creature that actually performs was kept.</li>
-      <li><strong>Caveat on this particular run.</strong> Afterwards I found
-      that ground depenetration was feeding real upward momentum back into a
-      joint that had punched into the floor, which is why this creature spends
-      most of its run airborne rather than striding. The contact model is
-      fixed in the code; these numbers are from the run that preceded the fix,
-      and a re-run under the corrected physics is under way.</li>
+      <li>An earlier run of this had to be thrown away: ground depenetration
+      was feeding real upward momentum back into any joint that punched into
+      the floor, and the population evolved to farm that trampoline instead of
+      running. These numbers are from the re-run after that contact model was
+      fixed.</li>
     </ul>"""
 
     fields = {
