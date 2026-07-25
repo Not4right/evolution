@@ -311,17 +311,20 @@ function draw() {
   cx.textAlign = 'center';
   const step = 10, from = Math.ceil((cxm - span / 2) / step) * step;
   for (let m = from; m < cxm + span / 2; m += step) {
-    cx.globalAlpha = .5;
-    cx.beginPath(); cx.moveTo(X(m), Y(0)); cx.lineTo(X(m), Y(0) + 14); cx.stroke();
-    cx.globalAlpha = .85;
-    cx.fillText(String(m), X(m), Y(0) + 38);
+    cx.globalAlpha = .45;
+    cx.beginPath(); cx.moveTo(X(m), Y(0)); cx.lineTo(X(m), Y(0) - 12); cx.stroke();
+    cx.fillText(String(m), X(m), Y(0) - 22);
     cx.globalAlpha = 1;
   }
+  cx.save();
+  cx.setLineDash([6, 8]); cx.globalAlpha = .5; cx.strokeStyle = css('--muscle');
+  cx.beginPath(); cx.moveTo(X(DATA.start_x), 0); cx.lineTo(X(DATA.start_x), Y(0));
+  cx.stroke(); cx.restore();
 
   if (ghosts) {
-    for (let g = 5; g >= 1; g--) {
-      const t = frame - g * 4;
-      if (t >= 0) pose(traj[t], ox, oy, scale, 0.06 + 0.02 * (5 - g), null);
+    for (let g = 4; g >= 1; g--) {
+      const t = frame - g * 7;
+      if (t >= 0) pose(traj[t], ox, oy, scale, 0.05 + 0.03 * (4 - g), null);
     }
   }
   pose(P, ox, oy, scale, 1, frame);
@@ -411,7 +414,7 @@ def main():
              ("%.2f" % entry["speed"], "units / second"),
              ("%.4f" % entry["fitness"], "game fitness"),
              (f"{gens:,}", "generations"),
-             (f"{st['pop'] * gens * len(res['designs']) / 1e6:.1f}M",
+             (f"{st['pop'] * gens * len(summary) / 1e6:.1f}M",
               "creatures simulated")]
     stat_cards = "".join(f'<div class="fig"><b>{v}</b><span>{k}</span></div>'
                          for v, k in cards)
