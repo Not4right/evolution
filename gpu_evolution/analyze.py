@@ -55,6 +55,8 @@ def main():
     ap.add_argument("--run", default="run")
     ap.add_argument("--designs", default="designs.json")
     ap.add_argument("--fps", type=int, default=25, help="trajectory sample rate")
+    ap.add_argument("--decimals", type=int, default=3,
+                    help="rounding of recorded joint positions")
     ap.add_argument("--history-stride", type=int, default=25)
     ap.add_argument("--blob", action="store_true")
     ap.add_argument("--blob-only", default=None,
@@ -122,11 +124,11 @@ def main():
                                world.gene_mask[i].cpu() > 0]],
             "start_positions": [[round(float(v), 4) for v in p]
                                 for p in world.pos0[i, :j].tolist()],
-            "trajectory": [[[round(float(v), 3) for v in p]
+            "trajectory": [[[round(float(v), args.decimals) for v in p]
                             for p in frame[i, :j].tolist()] for frame in traj],
             "contacts": [[int(v) for v in frame[i, :j].tolist()]
                          for frame in contacts],
-            "muscle_outputs": [[round(float(v), 3)
+            "muscle_outputs": [[round(float(v), 2)
                                 for v in frame[i, :world.n_muscles[i]].tolist()]
                                for frame in outputs],
         }
