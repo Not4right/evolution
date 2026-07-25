@@ -135,6 +135,9 @@ PAGE = """<title>%TITLE%</title>
   .fig span { display:block; margin-top:5px; font:500 11px/1.3 ui-monospace,
     SFMono-Regular,Menlo,Consolas,monospace; letter-spacing:.1em;
     text-transform:uppercase; color:var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .tab { display:flex; gap:8px; align-items:baseline; }
+  .tab u { text-decoration:none; opacity:.6; font-size:11px; }
   .stage { border:1px solid var(--rule); background:var(--sky);
     display:flex; flex-direction:column; }
   canvas { width:100%; height:auto; display:block; }
@@ -198,6 +201,7 @@ PAGE = """<title>%TITLE%</title>
   <div class="figures">%STAT_CARDS%</div>
 
   <section>
+    <div class="tabs" role="tablist" aria-label="Choose a creature">%TABS%</div>
     <div class="stage">
       <canvas id="stage" width="1800" height="720"></canvas>
       <div class="controls">
@@ -252,9 +256,10 @@ PAGE = """<title>%TITLE%</title>
 <script>
 const DATA = %DATA%;
 const cv = document.getElementById('stage'), cx = cv.getContext('2d');
-const traj = DATA.trajectory, contacts = DATA.contacts, outs = DATA.muscle_outputs;
-const bones = DATA.bones, muscles = DATA.muscles, dt = DATA.frame_dt;
-const N = traj.length;
+const dt = DATA.frame_dt;
+let C = DATA.creatures[DATA.champion];
+let traj = C.trajectory, contacts = C.contacts, outs = C.muscle_outputs;
+let bones = C.bones, muscles = C.muscles, N = traj.length;
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let frame = 0, playing = !reduced, speed = 1, last = 0, ghosts = true;
 
@@ -322,7 +327,7 @@ function draw() {
   }
   cx.save();
   cx.setLineDash([6, 8]); cx.globalAlpha = .5; cx.strokeStyle = css('--muscle');
-  cx.beginPath(); cx.moveTo(X(DATA.start_x), 0); cx.lineTo(X(DATA.start_x), Y(0));
+  cx.beginPath(); cx.moveTo(X(C.start_x), 0); cx.lineTo(X(C.start_x), Y(0));
   cx.stroke(); cx.restore();
 
   if (ghosts) {
@@ -333,7 +338,7 @@ function draw() {
   }
   pose(P, ox, oy, scale, 1, frame);
 
-  const t = frame * dt, d = cxm - DATA.start_x;
+  const t = frame * dt, d = cxm - C.start_x;
   document.getElementById('clock').textContent =
     't ' + t.toFixed(2) + 's \\u00b7 x ' + d.toFixed(1) + ' \\u00b7 ' +
     (d / Math.max(t, 1e-9)).toFixed(2) + ' u/s';
@@ -374,6 +379,21 @@ document.querySelectorAll('.sp').forEach(b => b.onclick = () => {
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
 new MutationObserver(draw).observe(document.documentElement,
   { attributes: true, attributeFilter: ['data-theme'] });
+function select(name) {
+  C = DATA.creatures[name];
+  traj = C.trajectory; contacts = C.contacts; outs = C.muscle_outputs;
+  bones = C.bones; muscles = C.muscles; N = traj.length;
+  frame = 0;
+  document.getElementById('scrub').max = String(N - 1);
+  document.getElementById('f-dist').textContent = C.distance.toFixed(1);
+  document.getElementById('f-speed').textContent = C.speed.toFixed(2);
+  document.getElementById('f-fit').textContent = C.fitness.toFixed(4);
+  document.querySelectorAll('.tab').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.name === name)));
+  draw();
+}
+document.querySelectorAll('.tab').forEach(b =>
+  b.onclick = () => select(b.dataset.name));
 draw();
 requestAnimationFrame(tick);
 </script>
@@ -402,17 +422,29 @@ def main():
     gens = res["generations_run"]
     st = res["settings"]
 
-    data = {
-        "name": champ,
-        "trajectory": trajcodec.decode(entry["trajectory"]),
-        "contacts": entry["contacts"],
-        "muscle_outputs": entry["muscle_outputs"],
-        "bones": bones,
-        "muscles": muscles,
-        "frame_dt": res["frame_dt"],
-        "start_x": round(sum(p[0] for p in entry["start_positions"])
-                         / len(entry["start_positions"]), 4),
-    }
+    order = sorted(res["designs"], key=lambda n: -res["designs"][n]["fitness"])
+    creatures = {}
+    for name in order:
+        d = res["designs"][name]
+        bo, mu = topology(designs[name])
+        creatures[name] = {
+            "trajectory": trajcodec.decode(d["trajectory"]),
+            "contacts": d["contacts"],
+            "muscle_outputs": d["muscle_outputs"],
+            "bones": bo,
+            "muscles": mu,
+            "start_x": round(sum(p[0] for p in d["start_positions"])
+                             / len(d["start_positions"]), 4),
+            "distance": round(d["distance"], 1),
+            "speed": round(d["speed"], 2),
+            "fitness": round(d["fitness"], 4),
+        }
+    data = {"champion": champ, "order": order, "creatures": creatures,
+            "frame_dt": res["frame_dt"]}
+    tabs = "".join(
+        f'<button class="tab" data-name="{n}" role="tab" '
+        f'aria-pressed="{str(n == champ).lower()}">{n}<u>'
+        f'{creatures[n]["distance"]:.0f}</u></button>' for n in order)
 
     cards = [("%.1f" % entry["distance"], "units in 10s"),
              ("%.2f" % entry["speed"], "units / second"),
@@ -420,8 +452,13 @@ def main():
              (f"{gens:,}", "generations"),
              (f"{st['pop'] * gens * len(summary) / 1e6:.1f}M",
               "creatures simulated")]
-    stat_cards = "".join(f'<div class="fig"><b>{v}</b><span>{k}</span></div>'
-                         for v, k in cards)
+    ids = ["f-dist", "f-speed", "f-fit", "", ""]
+    parts = []
+    for (v, k), i in zip(cards, ids):
+        attr = ' id="%s"' % i if i else ""
+        parts.append('<div class="fig"><b%s>%s</b><span>%s</span></div>'
+                     % (attr, v, k))
+    stat_cards = "".join(parts)
 
     rows = ["<thead><tr><th>Design</th><th>Joints</th><th>Bones</th>"
             "<th>Muscles</th><th>Distance</th><th>Speed</th><th>Fitness</th>"
@@ -513,6 +550,7 @@ def main():
         "CHART": svg_chart(res["history"], list(summary.keys()), champ),
         "BRAIN": brain,
         "NOTES": notes,
+        "TABS": tabs,
         "DATA": json.dumps(data, separators=(",", ":")),
     }
     html = PAGE
